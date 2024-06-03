@@ -820,7 +820,10 @@ mod tests {
     #[test]
     #[cfg(unix)]
     fn socket_messages() {
-        use std::{io, os::unix::io::AsRawFd};
+        use std::{
+            io,
+            os::unix::io::{AsRawFd, FromRawFd, OwnedFd},
+        };
 
         use super::Socket;
         use crate::{prelude::*, Cancellable, UnixFDMessage};
@@ -832,8 +835,8 @@ mod tests {
                 panic!("{}", io::Error::last_os_error());
             }
             (
-                Socket::from_fd(fds[0]).unwrap(),
-                Socket::from_fd(fds[1]).unwrap(),
+                Socket::from_fd(OwnedFd::from_raw_fd(fds[0])).unwrap(),
+                Socket::from_fd(OwnedFd::from_raw_fd(fds[1])).unwrap(),
             )
         };
 
