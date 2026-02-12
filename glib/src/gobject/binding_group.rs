@@ -9,33 +9,34 @@ use crate::{
 
 impl BindingGroup {
     #[doc(alias = "bind_with_closures")]
-    pub fn bind<'a, 'f, 't, O: ObjectType>(
+    pub fn bind<'a, O: ObjectType>(
         &'a self,
         source_property: &'a str,
         target: &'a O,
         target_property: &'a str,
-    ) -> BindingGroupBuilder<'a, 'f, 't> {
+    ) -> BindingGroupBuilder<'a> {
         BindingGroupBuilder::new(self, source_property, target, target_property)
     }
 }
 
-type TransformFn<'b> =
-    Option<Box<dyn Fn(&'b Binding, &'b Value) -> Option<Value> + Send + Sync + 'static>>;
+type TransformFn = Option<
+    Box<dyn for<'b, 'c> Fn(&'b Binding, &'c Value) -> Option<Value> + Send + Sync + 'static>,
+>;
 
 // rustdoc-stripper-ignore-next
 /// Builder for binding group bindings.
 #[must_use = "The builder must be built to be used"]
-pub struct BindingGroupBuilder<'a, 'f, 't> {
+pub struct BindingGroupBuilder<'a> {
     group: &'a BindingGroup,
     source_property: &'a str,
     target: &'a ObjectRef,
     target_property: &'a str,
     flags: BindingFlags,
-    transform_to: TransformFn<'t>,
-    transform_from: TransformFn<'f>,
+    transform_to: TransformFn,
+    transform_from: TransformFn,
 }
 
-impl fmt::Debug for BindingGroupBuilder<'_, '_, '_> {
+impl fmt::Debug for BindingGroupBuilder<'_> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("BindingGroupBuilder")
             .field("group", &self.group)
@@ -47,7 +48,7 @@ impl fmt::Debug for BindingGroupBuilder<'_, '_, '_> {
     }
 }
 
-impl<'a, 'f, 't> BindingGroupBuilder<'a, 'f, 't> {
+impl<'a> BindingGroupBuilder<'a> {
     fn new(
         group: &'a BindingGroup,
         source_property: &'a str,
@@ -85,9 +86,9 @@ impl<'a, 'f, 't> BindingGroupBuilder<'a, 'f, 't> {
     /// This function operates on concrete argument and return types.
     /// See [`Self::transform_from_with_values`] for a version which operates on `glib::Value`s.
     pub fn transform_from<
-        S: FromValue<'f>,
+        S: for<'f> FromValue<'f>,
         T: Into<Value>,
-        F: Fn(&'f Binding, S) -> Option<T> + Send + Sync + 'static,
+        F: for<'f> Fn(&'f Binding, S) -> Option<T> + Send + Sync + 'static,
     >(
         self,
         func: F,
@@ -121,9 +122,9 @@ impl<'a, 'f, 't> BindingGroupBuilder<'a, 'f, 't> {
     /// This function operates on concrete argument and return types.
     /// See [`Self::transform_to_with_values`] for a version which operates on `glib::Value`s.
     pub fn transform_to<
-        S: FromValue<'t>,
+        S: for<'t> FromValue<'t>,
         T: Into<Value>,
-        F: Fn(&'t Binding, S) -> Option<T> + Send + Sync + 'static,
+        F: for<'t> Fn(&'t Binding, S) -> Option<T> + Send + Sync + 'static,
     >(
         self,
         func: F,
@@ -489,7 +490,7 @@ mod test {
             .bind("name", &target, "enabled")
             .sync_create()
             .bidirectional()
-            .transform_to::<&str, _, _>(|_binding, value| Some(value == "Hello"))
+            .transform_to(|_binding, value: &str| Some(value == "Hello"))
             .transform_from(
                 |_binding, value: bool| if value { Some("Hello") } else { Some("World") },
             )
